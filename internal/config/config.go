@@ -31,12 +31,13 @@ type MQTT struct {
 	ReconnectDelay time.Duration `yaml:"reconnect_delay"`
 }
 type HomeAssistant struct {
-	URL            string        `yaml:"url"`
-	Token          string        `yaml:"token"`
-	AlarmEntityID  string        `yaml:"alarm_entity_id"`
-	ConnectTimeout time.Duration `yaml:"connect_timeout"`
-	ReconnectDelay time.Duration `yaml:"reconnect_delay"`
-	StateMaxAge    time.Duration `yaml:"state_max_age"`
+	URL                  string        `yaml:"url"`
+	Token                string        `yaml:"token"`
+	AlarmEntityID        string        `yaml:"alarm_entity_id"`
+	ConnectTimeout       time.Duration `yaml:"connect_timeout"`
+	ReconnectDelay       time.Duration `yaml:"reconnect_delay"`
+	StateMaxAge          time.Duration `yaml:"state_max_age"`
+	StateRefreshInterval time.Duration `yaml:"state_refresh_interval"`
 }
 type Frigate struct {
 	BaseURL        string        `yaml:"base_url"`
@@ -157,6 +158,9 @@ func (c *Config) Validate() error {
 	if c.Frigate.Clip.Timeout == 0 {
 		c.Frigate.Clip.Timeout = 2 * time.Minute
 	}
+	if c.HomeAssistant.StateRefreshInterval == 0 && c.HomeAssistant.StateMaxAge > 0 {
+		c.HomeAssistant.StateRefreshInterval = c.HomeAssistant.StateMaxAge / 2
+	}
 	c.Frigate.BaseURL = strings.TrimRight(c.Frigate.BaseURL, "/")
 	c.HomeAssistant.URL = strings.TrimRight(c.HomeAssistant.URL, "/")
 	req := func(v, n string) error {
@@ -178,13 +182,16 @@ func (c *Config) Validate() error {
 		value time.Duration
 	}{
 		{"mqtt.connect_timeout", c.MQTT.ConnectTimeout}, {"mqtt.reconnect_delay", c.MQTT.ReconnectDelay},
-		{"home_assistant.connect_timeout", c.HomeAssistant.ConnectTimeout}, {"home_assistant.reconnect_delay", c.HomeAssistant.ReconnectDelay}, {"home_assistant.state_max_age", c.HomeAssistant.StateMaxAge},
+		{"home_assistant.connect_timeout", c.HomeAssistant.ConnectTimeout}, {"home_assistant.reconnect_delay", c.HomeAssistant.ReconnectDelay}, {"home_assistant.state_max_age", c.HomeAssistant.StateMaxAge}, {"home_assistant.state_refresh_interval", c.HomeAssistant.StateRefreshInterval},
 		{"frigate.request_timeout", c.Frigate.RequestTimeout}, {"frigate.snapshot.retry_delay", c.Frigate.Snapshot.RetryDelay}, {"frigate.clip.retry_delay", c.Frigate.Clip.RetryDelay}, {"frigate.clip.timeout", c.Frigate.Clip.Timeout},
 		{"gemini.timeout", c.Gemini.Timeout}, {"telegram.timeout", c.Telegram.Timeout}, {"processing.event_ttl", c.Processing.EventTTL}, {"processing.shutdown_timeout", c.Processing.ShutdownTimeout},
 	} {
 		if item.value <= 0 {
 			return fmt.Errorf("%s must be positive", item.name)
 		}
+	}
+	if c.HomeAssistant.StateRefreshInterval >= c.HomeAssistant.StateMaxAge {
+		return fmt.Errorf("home_assistant.state_refresh_interval must be less than home_assistant.state_max_age")
 	}
 	if c.Frigate.Snapshot.Retries < 0 || c.Frigate.Clip.Retries < 0 {
 		return fmt.Errorf("frigate retries must not be negative")

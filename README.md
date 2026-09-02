@@ -22,7 +22,7 @@ Stop it with `docker compose down`.
 
 The image is non-root and uses a writable temporary directory for clips. The MQTT broker must be reachable using the configured URI. Home Assistant needs a long-lived access token (Profile -> Security -> Long-Lived Access Tokens), and its URL is converted to `/api/websocket`. Create a Telegram bot with BotFather and obtain the chat ID through the Bot API. Create a Gemini API key in Google AI Studio and choose a supported configured model (the supplied example uses `gemini-2.5-flash`).
 
-Rules are ordered, exact, and first-match-wins; conditions in a rule are ANDed. The supplied configuration allows `armed_away`, `armed_night`, and `armed_home` only for `Car Port`. Missing, unavailable, unknown, or stale alarm state always denies.
+Rules are ordered, exact, and first-match-wins; conditions in a rule are ANDed. The supplied configuration allows `armed_away`, `armed_night`, and `armed_home` only for `Car Port`. Missing, unavailable, unknown, or stale alarm state always denies. The current alarm state is refreshed over the existing Home Assistant WebSocket connection at `home_assistant.state_refresh_interval`; keep it shorter than `state_max_age`.
 
 Frigate snapshot and clip endpoints use the first linked event; camera falls back to `cameras[0]`. Downloads are bounded to 50 MiB, retried only for transient HTTP failures, and clips are securely temporary files. Telegram captions are Unicode-safely limited to 1024 code points. State is in-memory only, so restarts intentionally lose correlation.
 
