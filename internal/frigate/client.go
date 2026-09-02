@@ -54,7 +54,10 @@ func (c *Client) Snapshot(ctx context.Context, id string) ([]byte, string, error
 			return false, fmt.Errorf("unexpected snapshot content type %q", mime)
 		}
 		data, err = readLimited(resp.Body)
-		return false, err
+		if err != nil {
+			return false, fmt.Errorf("frigate snapshot read failed")
+		}
+		return false, nil
 	})
 	return data, mime, err
 }
@@ -81,7 +84,7 @@ func (c *Client) Clip(ctx context.Context, camera, start, end string) (LocalMedi
 		}
 		file, err := os.CreateTemp("", "frigate-*.mp4")
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("frigate clip temporary file creation failed")
 		}
 		name := file.Name()
 		size, copyErr := io.Copy(file, io.LimitReader(resp.Body, maxMedia+1))
@@ -89,10 +92,10 @@ func (c *Client) Clip(ctx context.Context, camera, start, end string) (LocalMedi
 		if copyErr != nil || closeErr != nil || size > maxMedia {
 			_ = os.Remove(name)
 			if copyErr != nil {
-				return false, copyErr
+				return false, fmt.Errorf("frigate clip download failed")
 			}
 			if closeErr != nil {
-				return false, closeErr
+				return false, fmt.Errorf("frigate clip temporary file close failed")
 			}
 			return false, fmt.Errorf("media too large")
 		}
@@ -105,12 +108,16 @@ func (c *Client) Clip(ctx context.Context, camera, start, end string) (LocalMedi
 func (c *Client) request(ctx context.Context, suffix string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.c.BaseURL+suffix, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("frigate request creation failed")
 	}
 	if c.c.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.c.Token)
 	}
-	return c.http.Do(req)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("frigate request failed")
+	}
+	return resp, nil
 }
 
 func (c *Client) retry(ctx context.Context, retries int, delay time.Duration, attempt func() (bool, error)) error {

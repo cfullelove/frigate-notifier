@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/example/frigate-notifier/internal/logging"
 	"gopkg.in/yaml.v3"
 	"os"
 	"regexp"
@@ -128,6 +129,20 @@ func Load(path string) (Config, error) {
 	return c, nil
 }
 func (c *Config) Validate() error {
+	c.Logging.Level = strings.ToLower(strings.TrimSpace(c.Logging.Level))
+	if c.Logging.Level == "" {
+		c.Logging.Level = "info"
+	}
+	if _, ok := logging.Level(c.Logging.Level); !ok {
+		return fmt.Errorf("logging.level must be debug, info, warn, or error")
+	}
+	c.Logging.Format = strings.ToLower(strings.TrimSpace(c.Logging.Format))
+	if c.Logging.Format == "" {
+		c.Logging.Format = "json"
+	}
+	if c.Logging.Format != "json" && c.Logging.Format != "text" {
+		return fmt.Errorf("logging.format must be json or text")
+	}
 	if c.MQTT.Topic == "" {
 		c.MQTT.Topic = "frigate_custom_reviews/reviews"
 	}

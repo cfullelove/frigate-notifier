@@ -38,7 +38,7 @@ func (c *Client) SendPhoto(ctx context.Context, data []byte, mime, cap string) (
 func (c *Client) SendVideo(ctx context.Context, m frigate.LocalMedia, cap string, reply int64) (int64, error) {
 	f, e := os.Open(m.Path)
 	if e != nil {
-		return 0, e
+		return 0, fmt.Errorf("telegram video open failed")
 	}
 	defer f.Close()
 	return c.send(ctx, "sendVideo", "video", m.Name, f, cap, reply)
@@ -53,34 +53,34 @@ func (c *Client) send(ctx context.Context, method, field, name string, r io.Read
 	}
 	p, e := w.CreateFormFile(field, name)
 	if e != nil {
-		return 0, e
+		return 0, fmt.Errorf("telegram %s media form creation failed", method)
 	}
 	buf := make([]byte, 32*1024)
 	for {
 		n, x := r.Read(buf)
 		if n > 0 {
 			if _, e = p.Write(buf[:n]); e != nil {
-				return 0, e
+				return 0, fmt.Errorf("telegram %s media write failed", method)
 			}
 		}
 		if x != nil {
 			if x != io.EOF {
-				return 0, x
+				return 0, fmt.Errorf("telegram %s media read failed", method)
 			}
 			break
 		}
 	}
 	if e = w.Close(); e != nil {
-		return 0, e
+		return 0, fmt.Errorf("telegram %s request finalization failed", method)
 	}
 	req, e := http.NewRequestWithContext(ctx, "POST", "https://api.telegram.org/bot"+c.c.BotToken+"/"+method, &b)
 	if e != nil {
-		return 0, e
+		return 0, fmt.Errorf("telegram %s request creation failed", method)
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	resp, e := c.http.Do(req)
 	if e != nil {
-		return 0, e
+		return 0, fmt.Errorf("telegram %s request failed", method)
 	}
 	defer resp.Body.Close()
 	var x struct {
@@ -91,13 +91,10 @@ func (c *Client) send(ctx context.Context, method, field, name string, r io.Read
 		} `json:"result"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&x); err != nil {
-		return 0, fmt.Errorf("invalid telegram response: %w", err)
+		return 0, fmt.Errorf("invalid telegram response")
 	}
 	if resp.StatusCode/100 != 2 || !x.OK {
-		if x.Description != "" {
-			return 0, fmt.Errorf("telegram request failed: HTTP %d: %s", resp.StatusCode, x.Description)
-		}
-		return 0, fmt.Errorf("telegram request failed: HTTP %d", resp.StatusCode)
+		return 0, fmt.Errorf("telegram %s request failed: HTTP %d", method, resp.StatusCode)
 	}
 	if x.Result.MessageID <= 0 {
 		return 0, fmt.Errorf("invalid telegram success response")

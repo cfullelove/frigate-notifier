@@ -23,6 +23,17 @@ func testClient(body string, status int) *Client {
 	return c
 }
 
+func TestSendPhotoErrorDoesNotExposeTokenOrMedia(t *testing.T) {
+	c := New(config.Telegram{BotToken: "bot-secret", ChatID: "chat", Timeout: time.Second})
+	c.http.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, io.ErrUnexpectedEOF
+	})
+	_, err := c.SendPhoto(context.Background(), []byte("private-image"), "image/jpeg", "caption")
+	if err == nil || strings.Contains(err.Error(), "bot-secret") || strings.Contains(err.Error(), "private-image") {
+		t.Fatalf("unsafe error: %v", err)
+	}
+}
+
 func TestSendPhotoRejectsUnreadableAndAPIFailureResponses(t *testing.T) {
 	for _, c := range []*Client{
 		testClient("not json", http.StatusOK),

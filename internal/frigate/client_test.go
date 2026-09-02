@@ -2,6 +2,7 @@ package frigate
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,22 @@ import (
 
 func testClient(url string) *Client {
 	return New(config.Frigate{BaseURL: url, RequestTimeout: time.Second, Snapshot: config.Retry{RetryDelay: time.Millisecond}, Clip: config.Clip{RetryDelay: time.Millisecond, Timeout: time.Second}})
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestSnapshotErrorDoesNotExposeToken(t *testing.T) {
+	c := testClient("http://example.invalid")
+	c.c.Token = "frigate-secret"
+	c.http.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("frigate-secret request details")
+	})
+	_, _, err := c.Snapshot(context.Background(), "event")
+	if err == nil || strings.Contains(err.Error(), "frigate-secret") {
+		t.Fatalf("unsafe error: %v", err)
+	}
 }
 
 func TestSnapshotRequiresImageAndEscapesID(t *testing.T) {

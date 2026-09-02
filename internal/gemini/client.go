@@ -54,12 +54,12 @@ func (c *Client) Analyse(ctx context.Context, image []byte, mime string) (Result
 	u := "https://generativelanguage.googleapis.com/v1beta/models/" + c.c.Model + ":generateContent?key=" + c.c.APIKey
 	r, e := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(b))
 	if e != nil {
-		return Result{}, e
+		return Result{}, fmt.Errorf("gemini request creation failed")
 	}
 	r.Header.Set("Content-Type", "application/json")
 	resp, e := c.http.Do(r)
 	if e != nil {
-		return Result{}, e
+		return Result{}, fmt.Errorf("gemini request failed")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {

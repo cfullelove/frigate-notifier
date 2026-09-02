@@ -28,6 +28,19 @@ processing: {workers: 1, queue_size: 1, event_ttl: 1h, shutdown_timeout: 1s}`
 	}
 }
 
+func TestValidateLoggingLevel(t *testing.T) {
+	for _, level := range []string{"debug", "info", "warn", "error"} {
+		c := Config{Logging: Logging{Level: level}}
+		if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "missing required") {
+			t.Fatalf("level %q did not pass logging validation: %v", level, err)
+		}
+	}
+	c := Config{Logging: Logging{Level: "verbose"}}
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "logging.level") {
+		t.Fatalf("unexpected validation result: %v", err)
+	}
+}
+
 func TestLoadExpandsEnvironment(t *testing.T) {
 	t.Setenv("TOKEN", "secret-value")
 	p := filepath.Join(t.TempDir(), "c.yml")
