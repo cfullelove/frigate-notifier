@@ -1,0 +1,6 @@
+.env
+config.yml
+!config.example.yml
+*.key
+*.pem
+coverage.out

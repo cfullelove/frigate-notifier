@@ -1,0 +1,6 @@
+.git
+.github
+.env
+config.yml
+coverage.out
+README.md

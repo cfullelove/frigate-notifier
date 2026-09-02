@@ -1,0 +1,11 @@
+services:
+  frigate-notifier:
+    build:
+      context: .
+    image: frigate-notifier:local
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./config.yml:/app/config.yml:ro
+    command: ["-config", "/app/config.yml"]

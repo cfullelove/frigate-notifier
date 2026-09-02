@@ -1,0 +1,51 @@
+mqtt:
+  broker: tcp://mqtt.local:1883
+  client_id: frigate-notifier
+  username: "${MQTT_USERNAME}"
+  password: "${MQTT_PASSWORD}"
+  topic: frigate_custom_reviews/reviews
+  qos: 1
+  connect_timeout: 10s
+  reconnect_delay: 5s
+home_assistant:
+  url: http://homeassistant.local:8123
+  token: "${HOME_ASSISTANT_TOKEN}"
+  alarm_entity_id: alarm_control_panel.home
+  connect_timeout: 10s
+  reconnect_delay: 5s
+  state_max_age: 5m
+frigate:
+  base_url: http://frigate.local:5000
+  token: "${FRIGATE_TOKEN}"
+  request_timeout: 30s
+  snapshot: { retries: 3, retry_delay: 1s, quality: 90 }
+  clip: { retries: 5, retry_delay: 2s, timeout: 2m }
+gemini:
+  api_key: "${GEMINI_API_KEY}"
+  model: gemini-2.5-flash
+  timeout: 30s
+  prompt: |
+    Return a valid JSON object with the following format:
+
+    {
+       "has_person": bool,
+       "description": string
+    }
+
+    Populate the object with the appropriate values based on the provided image.
+
+    If there is no person, add a humorous explanation as to why the classification might have failed.
+
+    Respond ONLY with the strictly raw JSON object. NO Markdown Code Blocks
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN}"
+  chat_id: "${TELEGRAM_CHAT_ID}"
+  timeout: 2m
+filter:
+  default_action: deny
+  rules:
+    - { name: Armed away, action: allow, alarm_states: [armed_away] }
+    - { name: Armed at night, action: allow, alarm_states: [armed_night] }
+    - { name: Car port while armed home, action: allow, alarm_states: [armed_home], profile_names: [Car Port] }
+processing: { workers: 4, queue_size: 100, event_ttl: 24h, shutdown_timeout: 30s }
+logging: { level: info, format: json }
