@@ -14,6 +14,7 @@ home_assistant:
   connect_timeout: 10s
   reconnect_delay: 5s
   state_max_age: 5m
+  state_refresh_interval: 1m
 frigate:
   base_url: http://frigate.local:5000
   token: "${FRIGATE_TOKEN}"

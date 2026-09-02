@@ -92,7 +92,35 @@ func (c *Client) connect(ctx context.Context, attempt int) {
 		return
 	}
 	c.log.Info("home assistant authenticated", "component", "home_assistant", "attempt", attempt)
-	if err := ws.WriteJSON(map[string]any{"id": 1, "type": "get_states"}); err != nil {
+	type message struct {
+		Type    string `json:"type"`
+		ID      int    `json:"id"`
+		Success bool   `json:"success"`
+		Error   struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+		Result []struct {
+			EntityID string `json:"entity_id"`
+			State    string `json:"state"`
+		} `json:"result"`
+		Event struct {
+			Data struct {
+				EntityID string `json:"entity_id"`
+				NewState struct {
+					State string `json:"state"`
+				} `json:"new_state"`
+			} `json:"data"`
+		} `json:"event"`
+	}
+	type readResult struct {
+		message message
+		err     error
+	}
+	getStates := func(id int) error {
+		return ws.WriteJSON(map[string]any{"id": id, "type": "get_states"})
+	}
+	if err := getStates(1); err != nil {
 		c.log.Warn("home assistant websocket write failed", "component", "home_assistant", "attempt", attempt, "operation", "get_states", "error", "write failed")
 		return
 	}
@@ -100,54 +128,79 @@ func (c *Client) connect(ctx context.Context, attempt int) {
 		c.log.Warn("home assistant websocket write failed", "component", "home_assistant", "attempt", attempt, "operation", "subscribe_events", "error", "write failed")
 		return
 	}
-	for {
-		var x struct {
-			Type    string `json:"type"`
-			ID      int    `json:"id"`
-			Success bool   `json:"success"`
-			Error   struct {
-				Code    string `json:"code"`
-				Message string `json:"message"`
-			} `json:"error"`
-			Result []struct {
-				EntityID string `json:"entity_id"`
-				State    string `json:"state"`
-			} `json:"result"`
-			Event struct {
-				Data struct {
-					EntityID string `json:"entity_id"`
-					NewState struct {
-						State string `json:"state"`
-					} `json:"new_state"`
-				} `json:"data"`
-			} `json:"event"`
-		}
-		if err := ws.ReadJSON(&x); err != nil {
-			c.log.Warn("home assistant websocket read failed", "component", "home_assistant", "attempt", attempt, "operation", "events", "error", "read failed")
-			return
-		}
-		if x.Type == "result" && x.ID == 1 {
-			if !x.Success {
-				c.log.Warn("home assistant get_states failed", "component", "home_assistant", "attempt", attempt, "error_code", x.Error.Code, "error_message", x.Error.Message)
+	messages := make(chan readResult, 1)
+	go func() {
+		for {
+			var x message
+			if err := ws.ReadJSON(&x); err != nil {
+				select {
+				case messages <- readResult{err: err}:
+				case <-done:
+				}
 				return
 			}
-			for _, s := range x.Result {
-				if s.EntityID == c.cfg.AlarmEntityID {
-					c.cache.Set(s.State)
-					c.log.Info("home assistant initial alarm state loaded", "component", "home_assistant", "alarm_state", s.State)
+			select {
+			case messages <- readResult{message: x}:
+			case <-done:
+				return
+			}
+		}
+	}()
+	ticker := time.NewTicker(c.cfg.StateRefreshInterval)
+	defer ticker.Stop()
+	nextID := 3
+	refreshPending := false
+	for {
+		select {
+		case result := <-messages:
+			if result.err != nil {
+				c.log.Warn("home assistant websocket read failed", "component", "home_assistant", "attempt", attempt, "operation", "events", "error", "read failed")
+				return
+			}
+			x := result.message
+			if x.Type == "result" && (x.ID == 1 || refreshPending && x.ID == nextID-1) {
+				refreshPending = false
+				if !x.Success {
+					c.log.Warn("home assistant get_states failed", "component", "home_assistant", "attempt", attempt, "error_code", x.Error.Code, "error_message", x.Error.Message)
+					return
+				}
+				found := false
+				for _, s := range x.Result {
+					if s.EntityID == c.cfg.AlarmEntityID {
+						found = true
+						c.cache.Set(s.State)
+						if x.ID == 1 {
+							c.log.Info("home assistant initial alarm state loaded", "component", "home_assistant", "alarm_state", s.State)
+						} else {
+							c.log.Debug("home assistant alarm state refreshed", "component", "home_assistant", "alarm_state", s.State)
+						}
+					}
+				}
+				if !found {
+					c.cache.Set("")
 				}
 			}
-		}
-		if x.Type == "result" && x.ID == 2 {
-			if !x.Success {
-				c.log.Warn("home assistant state subscription failed", "component", "home_assistant", "attempt", attempt, "error_code", x.Error.Code, "error_message", x.Error.Message)
+			if x.Type == "result" && x.ID == 2 {
+				if !x.Success {
+					c.log.Warn("home assistant state subscription failed", "component", "home_assistant", "attempt", attempt, "error_code", x.Error.Code, "error_message", x.Error.Message)
+					return
+				}
+				c.log.Info("home assistant state subscription active", "component", "home_assistant", "attempt", attempt)
+			}
+			if x.Type == "event" && x.Event.Data.EntityID == c.cfg.AlarmEntityID {
+				c.cache.Set(x.Event.Data.NewState.State)
+				c.log.Info("home assistant alarm state changed", "component", "home_assistant", "alarm_state", x.Event.Data.NewState.State)
+			}
+		case <-ticker.C:
+			if refreshPending {
+				continue
+			}
+			if err := getStates(nextID); err != nil {
+				c.log.Warn("home assistant websocket write failed", "component", "home_assistant", "attempt", attempt, "operation", "refresh_get_states", "error", "write failed")
 				return
 			}
-			c.log.Info("home assistant state subscription active", "component", "home_assistant", "attempt", attempt)
-		}
-		if x.Type == "event" && x.Event.Data.EntityID == c.cfg.AlarmEntityID {
-			c.cache.Set(x.Event.Data.NewState.State)
-			c.log.Info("home assistant alarm state changed", "component", "home_assistant", "alarm_state", x.Event.Data.NewState.State)
+			refreshPending = true
+			nextID++
 		}
 	}
 }

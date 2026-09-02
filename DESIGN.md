@@ -190,6 +190,7 @@ home_assistant:
   connect_timeout: 10s
   reconnect_delay: 5s
   state_max_age: 5m
+  state_refresh_interval: 1m
 
 frigate:
   base_url: http://frigate.local:5000
@@ -349,8 +350,9 @@ For every connection:
 4. Require `auth_ok`; treat `auth_invalid` as an error.
 5. Obtain initial alarm state. A straightforward method is `get_states` and selecting the configured entity. A more targeted supported command may be used if available.
 6. Subscribe to `state_changed` events, optionally filtering server-side when supported; otherwise filter received events client-side by `entity_id`.
-7. Update the in-memory alarm cache only for the configured entity.
-8. Reconnect with bounded delay/back-off after disconnection.
+7. Refresh the current configured entity state at `state_refresh_interval` using the established WebSocket connection, even when it has not changed. The interval must be shorter than `state_max_age`.
+8. Update the in-memory alarm cache only for the configured entity.
+9. Reconnect with bounded delay/back-off after disconnection.
 
 Each command must use a unique numeric message ID and its result must be correlated correctly. The read loop should have one owner to avoid concurrent WebSocket reads.
 

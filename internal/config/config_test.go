@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoadAllowsUnsetOptionalTokenAndUsesRetryDefaults(t *testing.T) {
@@ -23,7 +24,7 @@ processing: {workers: 1, queue_size: 1, event_ttl: 1h, shutdown_timeout: 1s}`
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.MQTT.Topic != "frigate_custom_reviews/reviews" || c.Frigate.Clip.Timeout <= 0 || c.Frigate.Snapshot.RetryDelay <= 0 {
+	if c.MQTT.Topic != "frigate_custom_reviews/reviews" || c.Frigate.Clip.Timeout <= 0 || c.Frigate.Snapshot.RetryDelay <= 0 || c.HomeAssistant.StateRefreshInterval != 30*time.Second {
 		t.Fatalf("defaults were not applied: %#v", c)
 	}
 }
