@@ -49,7 +49,7 @@ func Parse(s string) (Result, error) {
 	return r, nil
 }
 func (c *Client) Analyse(ctx context.Context, image []byte, mime string) (Result, error) {
-	body := map[string]any{"contents": []any{map[string]any{"parts": []any{map[string]any{"text": c.c.Prompt}, map[string]any{"inline_data": map[string]string{"mime_type": mime, "data": base64.StdEncoding.EncodeToString(image)}}}}}, "generationConfig": map[string]any{"responseMimeType": "application/json", "responseSchema": map[string]any{"type": "OBJECT", "properties": map[string]any{"has_person": map[string]string{"type": "BOOLEAN"}, "description": map[string]string{"type": "STRING"}}, "required": []string{"has_person", "description"}, "additionalProperties": false}}}
+	body := map[string]any{"contents": []any{map[string]any{"parts": []any{map[string]any{"text": c.c.Prompt}, map[string]any{"inline_data": map[string]string{"mime_type": mime, "data": base64.StdEncoding.EncodeToString(image)}}}}}, "generationConfig": map[string]any{"responseMimeType": "application/json", "responseSchema": map[string]any{"type": "OBJECT", "properties": map[string]any{"has_person": map[string]string{"type": "BOOLEAN"}, "description": map[string]string{"type": "STRING"}}, "required": []string{"has_person", "description"}}}}
 	b, _ := json.Marshal(body)
 	u := "https://generativelanguage.googleapis.com/v1beta/models/" + c.c.Model + ":generateContent?key=" + c.c.APIKey
 	r, e := http.NewRequestWithContext(ctx, "POST", u, bytes.NewReader(b))
@@ -63,6 +63,19 @@ func (c *Client) Analyse(ctx context.Context, image []byte, mime string) (Result
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
+		var apiError struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		_ = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&apiError)
+		message := strings.Join(strings.Fields(apiError.Error.Message), " ")
+		if len([]rune(message)) > 512 {
+			message = string([]rune(message)[:509]) + "..."
+		}
+		if message != "" {
+			return Result{}, fmt.Errorf("gemini returned HTTP %d: %s", resp.StatusCode, message)
+		}
 		return Result{}, fmt.Errorf("gemini returned HTTP %d", resp.StatusCode)
 	}
 	var out struct {

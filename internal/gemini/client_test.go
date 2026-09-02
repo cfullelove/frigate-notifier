@@ -3,6 +3,7 @@ package gemini
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -22,6 +23,17 @@ func TestAnalyseErrorDoesNotExposeAPIKeyOrMedia(t *testing.T) {
 	_, err := c.Analyse(context.Background(), []byte("image-bytes"), "image/jpeg")
 	if err == nil || strings.Contains(err.Error(), "api-secret") || strings.Contains(err.Error(), "image-bytes") {
 		t.Fatalf("unsafe error: %v", err)
+	}
+}
+
+func TestAnalyseHTTPErrorIncludesSafeAPIMessage(t *testing.T) {
+	c := New(config.Gemini{APIKey: "api-secret", Model: "model", Prompt: "prompt"})
+	c.http.Transport = roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusBadRequest, Body: io.NopCloser(strings.NewReader(`{"error":{"message":"unsupported schema field"}}`)), Header: make(http.Header)}, nil
+	})
+	_, err := c.Analyse(context.Background(), []byte("image-bytes"), "image/jpeg")
+	if err == nil || !strings.Contains(err.Error(), "unsupported schema field") || strings.Contains(err.Error(), "api-secret") || strings.Contains(err.Error(), "image-bytes") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
