@@ -14,7 +14,7 @@ import (
 )
 
 func testClient(url string) *Client {
-	return New(config.Frigate{BaseURL: url, RequestTimeout: time.Second, Snapshot: config.Retry{RetryDelay: time.Millisecond}, Clip: config.Clip{RetryDelay: time.Millisecond, Timeout: time.Second}})
+	return New(config.Frigate{BaseURL: url, RequestTimeout: time.Second, Snapshot: config.Retry{RetryDelay: time.Millisecond}, Clip: config.Clip{Source: "clip", RetryDelay: time.Millisecond, Timeout: time.Second}})
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -47,9 +47,30 @@ func TestSnapshotRequiresImageAndEscapesID(t *testing.T) {
 	}
 }
 
+func TestClipUsesPreviewSource(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/api/camera/start/1/end/2/preview.mp4" {
+			t.Fatalf("unexpected preview path: %s", r.URL.EscapedPath())
+		}
+		w.Header().Set("Content-Type", "video/mp4")
+		_, _ = w.Write([]byte("preview"))
+	}))
+	defer server.Close()
+	c := testClient(server.URL)
+	c.c.Clip.Source = "preview"
+	media, err := c.Clip(context.Background(), "camera", "1", "2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer media.Cleanup()
+}
+
 func TestClipStreamsToTemporaryFileAndCleansUp(t *testing.T) {
 	payload := []byte("video data")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/api/front%20door/start/1.25/end/2.5/clip.mp4" {
+			t.Fatalf("unexpected clip path: %s", r.URL.EscapedPath())
+		}
 		w.Header().Set("Content-Type", "video/mp4; charset=binary")
 		_, _ = w.Write(payload)
 	}))

@@ -67,7 +67,7 @@ func (c *Client) Clip(ctx context.Context, camera, start, end string) (LocalMedi
 	defer cancel()
 	var media LocalMedia
 	err := c.retry(ctx, c.c.Clip.Retries, c.c.Clip.RetryDelay, func() (bool, error) {
-		resp, err := c.request(ctx, "/api/"+url.PathEscape(camera)+"/start/"+url.PathEscape(start)+"/end/"+url.PathEscape(end)+"/clip.mp4")
+		resp, err := c.request(ctx, "/api/"+url.PathEscape(camera)+"/start/"+url.PathEscape(start)+"/end/"+url.PathEscape(end)+"/"+c.c.Clip.Source+".mp4")
 		if err != nil {
 			return true, err
 		}

@@ -24,7 +24,7 @@ processing: {workers: 1, queue_size: 1, event_ttl: 1h, shutdown_timeout: 1s}`
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.MQTT.Topic != "frigate_custom_reviews/reviews" || c.Frigate.Clip.Timeout <= 0 || c.Frigate.Snapshot.RetryDelay <= 0 || c.HomeAssistant.StateRefreshInterval != 30*time.Second {
+	if c.MQTT.Topic != "frigate_custom_reviews/reviews" || c.Frigate.Clip.Source != "clip" || c.Frigate.Clip.Timeout <= 0 || c.Frigate.Snapshot.RetryDelay <= 0 || c.HomeAssistant.StateRefreshInterval != 30*time.Second {
 		t.Fatalf("defaults were not applied: %#v", c)
 	}
 }
@@ -38,6 +38,13 @@ func TestValidateLoggingLevel(t *testing.T) {
 	}
 	c := Config{Logging: Logging{Level: "verbose"}}
 	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "logging.level") {
+		t.Fatalf("unexpected validation result: %v", err)
+	}
+}
+
+func TestValidateClipSource(t *testing.T) {
+	c := Config{Frigate: Frigate{Clip: Clip{Source: "recording"}}}
+	if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "frigate.clip.source") {
 		t.Fatalf("unexpected validation result: %v", err)
 	}
 }
