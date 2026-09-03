@@ -188,7 +188,7 @@ func (p *Processor) end(ctx context.Context, d *mqttclient.ReviewData) {
 	r.s, r.updated = clipSending, time.Now()
 	newData, reply := r.data, r.msg
 	p.mu.Unlock()
-	p.log.Info("end review sending clip", fields...)
+	p.log.Info("end review sending video", fields...)
 	p.sendClip(ctx, d.ID, newData, d, reply)
 }
 
@@ -210,7 +210,7 @@ func cameraFor(end, initial *mqttclient.ReviewData) string {
 
 func (p *Processor) sendClip(ctx context.Context, id string, initial, end *mqttclient.ReviewData, reply int64) {
 	camera := cameraFor(end, initial)
-	fields := append(attrs(end, "end"), "camera", camera)
+	fields := append(attrs(end, "end"), "camera", camera, "media_source", p.cfg.Frigate.Clip.Source)
 	if camera == "" {
 		p.log.Warn("clip skipped; camera unavailable", fields...)
 		p.setClipResult(id, false)
@@ -219,16 +219,20 @@ func (p *Processor) sendClip(ctx context.Context, id string, initial, end *mqttc
 	started := time.Now()
 	media, err := p.frig.Clip(ctx, camera, end.StartTime.String(), end.EndTime.String())
 	if err != nil {
-		p.log.Error("clip fetch failed", append(fields, "error", err.Error(), "duration_ms", time.Since(started).Milliseconds())...)
+		p.log.Error("video fetch failed", append(fields, "error", err.Error(), "duration_ms", time.Since(started).Milliseconds())...)
 		p.setClipResult(id, false)
 		return
 	}
 	defer media.Cleanup()
-	_, err = p.notify.SendVideo(ctx, media, "Frigate recording: "+camera, reply)
+	source := p.cfg.Frigate.Clip.Source
+	if source == "" {
+		source = "clip"
+	}
+	_, err = p.notify.SendVideo(ctx, media, "Frigate "+source+": "+camera, reply)
 	if err != nil {
-		p.log.Error("telegram clip failed", append(fields, "error", err.Error(), "duration_ms", time.Since(started).Milliseconds())...)
+		p.log.Error("telegram video failed", append(fields, "error", err.Error(), "duration_ms", time.Since(started).Milliseconds())...)
 	} else {
-		p.log.Info("telegram clip sent", append(fields, "duration_ms", time.Since(started).Milliseconds())...)
+		p.log.Info("telegram video sent", append(fields, "duration_ms", time.Since(started).Milliseconds())...)
 	}
 	p.setClipResult(id, err == nil)
 }

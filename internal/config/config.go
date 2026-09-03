@@ -52,6 +52,7 @@ type Retry struct {
 	Quality    *int          `yaml:"quality"`
 }
 type Clip struct {
+	Source     string        `yaml:"source"`
 	Retries    int           `yaml:"retries"`
 	RetryDelay time.Duration `yaml:"retry_delay"`
 	Timeout    time.Duration `yaml:"timeout"`
@@ -157,6 +158,13 @@ func (c *Config) Validate() error {
 	}
 	if c.Frigate.Clip.Timeout == 0 {
 		c.Frigate.Clip.Timeout = 2 * time.Minute
+	}
+	c.Frigate.Clip.Source = strings.ToLower(strings.TrimSpace(c.Frigate.Clip.Source))
+	if c.Frigate.Clip.Source == "" {
+		c.Frigate.Clip.Source = "clip"
+	}
+	if c.Frigate.Clip.Source != "clip" && c.Frigate.Clip.Source != "preview" {
+		return fmt.Errorf("frigate.clip.source must be clip or preview")
 	}
 	if c.HomeAssistant.StateRefreshInterval == 0 && c.HomeAssistant.StateMaxAge > 0 {
 		c.HomeAssistant.StateRefreshInterval = c.HomeAssistant.StateMaxAge / 2

@@ -20,7 +20,7 @@ frigate:
   token: "${FRIGATE_TOKEN}"
   request_timeout: 30s
   snapshot: { retries: 3, retry_delay: 1s, quality: 90 }
-  clip: { retries: 5, retry_delay: 2s, timeout: 2m }
+  clip: { source: clip, retries: 5, retry_delay: 2s, timeout: 2m }
 gemini:
   api_key: "${GEMINI_API_KEY}"
   model: gemini-2.5-flash
