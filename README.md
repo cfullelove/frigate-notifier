@@ -1,6 +1,13 @@
 # Frigate notifier
 
-A fail-closed MQTT service for Frigate review events. It caches a Home Assistant alarm state over WebSocket, applies ordered rules, asks Gemini to inspect a Frigate snapshot, and sends a Telegram photo followed by one clip when the review ends.
+A fail-closed MQTT service for custom review events. It caches a Home Assistant alarm state over WebSocket, applies ordered rules, asks Gemini to inspect a Frigate snapshot, and sends a Telegram photo followed by one clip when the review ends.
+
+## Event source
+
+This service does **not** consume Frigate's raw `frigate/events` topic. It consumes the aggregated review messages published by [frigate-custom-reviews](https://github.com/cfullelove/frigate-custom-reviews), which subscribes to Frigate events and emits `new`, `update`, and `end` review messages. Run and configure that service first, then set `mqtt.topic` here to its `reviews_publish_topic` (by default, `frigate_custom_reviews/reviews`). This notifier processes `new` and `end` messages only.
+
+The notifier's `frigate.base_url` must still point to the Frigate instance from which the linked events, snapshots, and recordings are available.
+
 
 ## Configure and run
 
