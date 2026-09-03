@@ -7,11 +7,11 @@
 
 ## 1. Purpose
 
-Build a long-running Go service that subscribes to Frigate review events published over MQTT, filters new events using the current state of a Home Assistant alarm entity and configurable rules, uses Gemini image analysis to reject likely false positives, and sends qualifying media to a configured Telegram chat.
+Build a long-running Go service that subscribes to custom review events published by [frigate-custom-reviews](https://github.com/cfullelove/frigate-custom-reviews) over MQTT. That upstream service consumes Frigate's raw `frigate/events` messages and aggregates them into review messages. This service filters `new` reviews using the current state of a Home Assistant alarm entity and configurable rules, uses Gemini image analysis to reject likely false positives, and sends qualifying media to a configured Telegram chat.
 
 The service must:
 
-1. Subscribe to Frigate review events via MQTT.
+1. Subscribe to custom review events from frigate-custom-reviews via MQTT; it does not subscribe to Frigate's raw event topic.
 2. Process only `new` and `end` review message types.
 3. Maintain the configured Home Assistant alarm entity's state through the Home Assistant WebSocket API (initial state plus live `state_changed` updates).
 4. Evaluate configurable filter rules for `new` messages.
@@ -60,6 +60,8 @@ A linked event also identifies a camera. Prefer `after.linked_events[0].camera`;
 ## 5. Input contract
 
 ### 5.1 MQTT topic
+
+The notifier subscribes to the topic configured as `reviews_publish_topic` in frigate-custom-reviews, rather than Frigate's raw `frigate/events` topic.
 
 Default topic:
 
